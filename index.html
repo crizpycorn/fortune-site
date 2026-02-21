@@ -7,11 +7,9 @@
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&display=swap');
 
-    /* SF Pro stack */
     :root {
       --sf: -apple-system, "SF Pro Display", "SF Pro Text", BlinkMacSystemFont, "Helvetica Neue", sans-serif;
       --serif: 'Cormorant Garamond', Georgia, serif;
-
       --bg: #ffffff;
       --soft-pink: #f7e8e8;
       --soft-lavender: #ede8f5;
@@ -35,11 +33,9 @@
       align-items: center;
       justify-content: center;
       padding: 2rem 1rem;
-      /* subtle grain texture */
       background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
     }
 
-    /* floating blobs in background */
     body::before, body::after {
       content: '';
       position: fixed;
@@ -94,7 +90,6 @@
       line-height: 1.2;
     }
 
-    /* Card */
     .card {
       width: 100%;
       background: var(--card-bg);
@@ -107,7 +102,6 @@
       border: 1px solid rgba(220, 200, 220, 0.3);
     }
 
-    /* Image area */
     .image-slot {
       width: 100%;
       height: 280px;
@@ -131,7 +125,6 @@
       transform: scale(1);
     }
 
-    /* soft overlay on image */
     .image-slot::after {
       content: '';
       position: absolute;
@@ -140,7 +133,6 @@
       pointer-events: none;
     }
 
-    /* placeholder inside image slot */
     .img-placeholder {
       position: absolute;
       inset: 0;
@@ -171,7 +163,6 @@
       50% { transform: translateY(-8px); }
     }
 
-    /* Fortune text area */
     .fortune-area {
       padding: 2rem 2.2rem 2.4rem;
     }
@@ -222,7 +213,6 @@
       margin: 0 2.2rem;
     }
 
-    /* Button area */
     .btn-area {
       padding: 1.6rem 2.2rem 2rem;
       display: flex;
@@ -261,12 +251,14 @@
       transform: scale(0.96);
     }
 
-    /* dots indicator */
+    /* dots indicator — dynamically generated */
     .dots {
       display: flex;
       gap: 5px;
       justify-content: center;
       padding-bottom: 1rem;
+      flex-wrap: wrap;
+      max-width: 200px;
     }
 
     .dot {
@@ -315,18 +307,12 @@
     <div class="divider"></div>
 
     <div class="btn-area">
-      <span class="count-label" id="countLabel">— / 5</span>
+      <span class="count-label" id="countLabel">— / 10</span>
       <button onclick="showFortune()">Open Cookie ✦</button>
     </div>
   </div>
 
-  <div class="dots" id="dots">
-    <div class="dot"></div>
-    <div class="dot"></div>
-    <div class="dot"></div>
-    <div class="dot"></div>
-    <div class="dot"></div>
-  </div>
+  <div class="dots" id="dots"></div>
 
   <footer>fortune cookie &nbsp;·&nbsp; made by anannya ✦</footer>
 </div>
@@ -338,59 +324,81 @@
     { text: "Good things happen when you try.", img: "img3.jpg" },
     { text: "Don't let boredom and loneliness send you back to your old habits.", img: "img4.jpg" },
     { text: "Don't hold onto things that require a tight grip.", img: "img5.jpg" },
+    { text: "The quieter you become, the more you can hear.", img: "img6.jpg" },
+    { text: "Something you lost will soon be found.", img: "img7.jpg" },
+    { text: "Your kindness is your greatest strength.", img: "img8.jpg" },
+    { text: "Rest is not a reward — it's a requirement.", img: "img9.jpg" },
+    { text: "You are not behind. You are right on time.", img: "img10.jpg" },
   ];
 
-  // shuffle order each session
-  let order = [...Array(fortunes.length).keys()];
-  for (let i = order.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [order[i], order[j]] = [order[j], order[i]];
+  const TOTAL = fortunes.length;
+
+  // Build dots dynamically based on fortune count
+  const dotsContainer = document.getElementById('dots');
+  for (let i = 0; i < TOTAL; i++) {
+    const d = document.createElement('div');
+    d.className = 'dot';
+    dotsContainer.appendChild(d);
   }
 
-  let step = 0;
-  let revealed = new Set();
+  // Shuffled order — rebuilt when a full cycle completes
+  function buildOrder() {
+    const arr = [...Array(TOTAL).keys()];
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
 
-  const imgEl = document.getElementById('fortuneImg');
-  const textEl = document.getElementById('fortuneText');
+  let order = buildOrder();
+  let stepInCycle = 0; // position within current cycle (0 → TOTAL-1)
+
+  const imgEl       = document.getElementById('fortuneImg');
+  const textEl      = document.getElementById('fortuneText');
   const placeholder = document.getElementById('imgPlaceholder');
-  const countLabel = document.getElementById('countLabel');
-  const dots = document.querySelectorAll('.dot');
+  const countLabel  = document.getElementById('countLabel');
+  const dots        = document.querySelectorAll('.dot');
+
+  // initialise label
+  countLabel.textContent = `— / ${TOTAL}`;
 
   function updateDots(index) {
     dots.forEach((d, i) => d.classList.toggle('active', i === index));
   }
 
   function showFortune() {
-    const idx = order[step % fortunes.length];
+    // If we've shown all fortunes, start a new shuffled cycle
+    if (stepInCycle === TOTAL) {
+      order = buildOrder();
+      stepInCycle = 0;
+    }
+
+    const idx     = order[stepInCycle];
     const fortune = fortunes[idx];
 
-    // fade out current
+    // fade out
     imgEl.classList.remove('visible');
     textEl.classList.remove('visible');
     textEl.style.opacity = 0;
 
     setTimeout(() => {
-      // hide placeholder
       placeholder.classList.add('hidden');
 
-      // set new content
       imgEl.src = fortune.img;
       imgEl.onload = () => imgEl.classList.add('visible');
-      // if cached, force show
-      if (imgEl.complete) imgEl.classList.add('visible');
+      if (imgEl.complete && imgEl.naturalWidth) imgEl.classList.add('visible');
 
-      // update text
-      textEl.className = 'fortune-text';
+      textEl.className  = 'fortune-text';
       textEl.textContent = fortune.text;
 
       requestAnimationFrame(() => {
         requestAnimationFrame(() => textEl.classList.add('visible'));
       });
 
-      revealed.add(idx);
-      updateDots(step % fortunes.length);
-      countLabel.textContent = `${revealed.size} / ${fortunes.length}`;
-      step++;
+      updateDots(stepInCycle);
+      stepInCycle++;
+      countLabel.textContent = `${stepInCycle} / ${TOTAL}`;
 
     }, 300);
   }
